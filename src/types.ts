@@ -1,3 +1,8 @@
+/**
+ * Статус выполнения процедуры.
+ * 1 - Выполнено
+ * 2 - Пропущено
+ */
 export type ProcedureStatus = 1 | 2;
 
 export interface Patient {
@@ -18,4 +23,4 @@ export interface UserInfo {
     position: string;
 }
 
-export type AppTheme = 'light' | 'dark' | 'comfort' | 'system';
+export type AppTheme = 'light' | 'dark' | 'system';

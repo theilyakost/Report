@@ -9,6 +9,24 @@
     "core:default",
     "opener:default",
     "dialog:default",
-    "fs:default"
+    "fs:default",
+    "fs:read-all",
+    "fs:write-all",
+    "fs:allow-write-text-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        "**/*"
+      ]
+    },
+    "share:default",
+    {
+      "identifier": "share:allow-share-file",
+      "allow": []
+    },
+    "haptics:allow-impact-feedback",
+    "haptics:allow-notification-feedback",
+    "haptics:allow-selection-feedback",
+    "haptics:allow-vibrate"
   ]
 }

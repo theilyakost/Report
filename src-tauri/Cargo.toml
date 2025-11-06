@@ -24,4 +24,18 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+tauri-plugin-haptics = "2.3.0"
+tauri-plugin-share = "2.0.5"
 
+[tauri.allowlist.fs]
+all = true
+readFile = true
+writeFile = true
+readDir = true
+removeFile = true
+createDir = true
+renameFile = true
+scope = ["**/*"]
+
+[tauri.plugins.fs.scope]
+allow = ["**/*"]

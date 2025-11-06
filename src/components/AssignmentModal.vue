@@ -1,7 +1,8 @@
 <template>
   <div class="modal-overlay" :class="{ active: isOpen }" @click.self="closeModal">
     <div class="modal-content">
-      <h3 class="modal-title">Выберите назначения</h3>
+      <h3 class="modal-title">ВЫБОР НАЗНАЧЕНИЙ</h3>
+
       <div class="assignment-options">
         <div v-for="option in allAssignments" :key="option"
              class="assignment-item"
@@ -10,9 +11,10 @@
           {{ option }}
         </div>
       </div>
+
       <div class="modal-actions">
-        <button @click="closeModal" class="button-secondary">Отмена</button>
-        <button @click="saveChanges" class="button-primary">Сохранить</button>
+        <button @click="closeModal" class="button-secondary">ОТМЕНА</button>
+        <button @click="saveChanges" class="button-primary">СОХРАНИТЬ</button>
       </div>
     </div>
   </div>
@@ -20,7 +22,8 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-
+import { useHaptics } from '@/composables/useHaptics';
+const { triggerSelection, triggerConfirm } = useHaptics();
 const props = defineProps<{
   isOpen: boolean;
   allAssignments: string[];
@@ -45,6 +48,7 @@ function isSelected(option: string): boolean {
 }
 
 function toggleSelection(option: string): void {
+  triggerSelection();
   const index = selectedAssignments.value.indexOf(option);
   if (index > -1) {
     selectedAssignments.value.splice(index, 1);
@@ -54,14 +58,13 @@ function toggleSelection(option: string): void {
 }
 
 function closeModal(): void {
+  triggerSelection();
   emit('close');
 }
 
 function saveChanges(): void {
+  triggerConfirm();
   emit('save', selectedAssignments.value);
   closeModal();
 }
 </script>
-
-<style scoped>
-</style>

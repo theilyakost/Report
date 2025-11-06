@@ -1,9 +1,13 @@
 <template>
   <div>
     <div class="calendar-controls">
-      <button @click="prevMonth" class="header-button">&lt;</button>
-      <span>{{ monthName }} {{ currentYear }}</span>
-      <button @click="nextMonth" class="header-button">&gt;</button>
+      <button @click="prevMonth" class="header-button" aria-label="Предыдущий месяц">
+        <span class="material-symbols-outlined">chevron_left</span>
+      </button>
+      <span class="month-name">{{ monthName }} {{ currentYear }}</span>
+      <button @click="nextMonth" class="header-button" aria-label="Следующий месяц">
+        <span class="material-symbols-outlined">chevron_right</span>
+      </button>
     </div>
     <div class="procedure-calendar">
       <div v-for="day in weekDays" :key="day" class="calendar-header">{{ day }}</div>
@@ -11,7 +15,7 @@
            class="calendar-day"
            :class="getDayClasses(day)"
            @click="onDayClick(day)">
-        <span v-if="day.dayOfMonth > 0">{{ day.dayOfMonth }}</span>
+        <span v-if="day.isCurrentMonth">{{ day.dayOfMonth }}</span>
       </div>
     </div>
   </div>
@@ -23,7 +27,7 @@ import type { Patient, ProcedureStatus } from '@/types';
 
 interface CalendarDay {
   dayOfMonth: number;
-  fullDate: string; // YYYY-MM-DD
+  fullDate: string; // Формат YYYY-MM-DD
   isCurrentMonth: boolean;
   isToday: boolean;
 }
@@ -36,6 +40,7 @@ const emit = defineEmits<{
   (e: 'day-click', date: string): void;
 }>();
 
+// --- Утилиты для работы с датами ---
 function getLocalDateString(date: Date): string {
   const year = date.getFullYear();
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -43,18 +48,19 @@ function getLocalDateString(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+// --- Состояние компонента ---
 const today = new Date();
 const todayStr = getLocalDateString(today);
-
 const currentDate = ref(new Date(today.getFullYear(), today.getMonth(), 1));
-
 const weekDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
+// --- Вычисляемые свойства ---
 const currentYear = computed(() => currentDate.value.getFullYear());
-const currentMonth = computed(() => currentDate.value.getMonth()); // 0-11
+const currentMonth = computed(() => currentDate.value.getMonth());
 
 const monthName = computed(() => {
-  return currentDate.value.toLocaleString('ru-RU', { month: 'long' });
+  const name = currentDate.value.toLocaleString('ru-RU', { month: 'long' });
+  return name.toUpperCase(); // Соответствует стилю маркировки
 });
 
 const calendarDays = computed((): CalendarDay[] => {
@@ -64,50 +70,35 @@ const calendarDays = computed((): CalendarDay[] => {
 
   const firstDayOfMonth = new Date(year, month, 1);
   const dayOfWeek = firstDayOfMonth.getDay();
-
   const startOffset = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+  // Заглушки для дней предыдущего месяца
   for (let i = 0; i < startOffset; i++) {
-    days.push({
-      dayOfMonth: 0,
-      fullDate: `prev-${i}`,
-      isCurrentMonth: false,
-      isToday: false
-    });
+    days.push({ dayOfMonth: 0, fullDate: `prev-${i}`, isCurrentMonth: false, isToday: false });
   }
 
+  // Дни текущего месяца
   for (let i = 1; i <= daysInMonth; i++) {
     const date = new Date(year, month, i);
     const dateStr = getLocalDateString(date);
-    days.push({
-      dayOfMonth: i,
-      fullDate: dateStr,
-      isCurrentMonth: true,
-      isToday: dateStr === todayStr
-    });
+    days.push({ dayOfMonth: i, fullDate: dateStr, isCurrentMonth: true, isToday: dateStr === todayStr });
   }
 
-  const remainingSlots = 42 - days.length;
-  for (let i = 0; i < remainingSlots; i++) {
-    days.push({
-      dayOfMonth: 0,
-      fullDate: `next-${i}`,
-      isCurrentMonth: false,
-      isToday: false
-    });
+  // Заглушки для дней следующего месяца для заполнения сетки 6x7
+  while (days.length < 42) {
+    days.push({ dayOfMonth: 0, fullDate: `next-${days.length}`, isCurrentMonth: false, isToday: false });
   }
 
   return days;
 });
 
+// --- Методы ---
 function getDayClasses(day: CalendarDay) {
   if (!day.isCurrentMonth) {
     return 'not-in-month';
   }
-
   const status: ProcedureStatus | undefined = props.patient.dates[day.fullDate];
-
   return {
     'work-day': true,
     'today': day.isToday,
@@ -132,22 +123,9 @@ function nextMonth() {
 </script>
 
 <style scoped>
-
-.calendar-controls {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+.month-name {
   font-weight: 600;
   font-size: 18px;
+  letter-spacing: 1px;
 }
-.calendar-controls button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 24px;
-  color: var(--text-color);
-  padding: 0 16px;
-}
-
 </style>

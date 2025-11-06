@@ -40,33 +40,30 @@
     </div>
 
     <button @click="exportToPDF" class="button-primary" style="margin-top: 16px;">
-      <span class="material-symbols-outlined">picture_as_pdf</span> Экспорт в PDF
+      <span class="material-symbols-outlined">picture_as_pdf</span>
+      Экспорт в PDF
     </button>
   </div>
 </template>
-
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useMainStore } from '@/stores/mainStore';
 import { getUnitsForAssignment } from '@/utils/constants';
-import html2pdf from 'html2pdf.js';
-
-// --- ИМПОРТЫ, КОТОРЫХ НЕ ХВАТАЛО ---
-import { useToasts } from '@/composables/useToasts';
-import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
+import { save } from '@tauri-apps/plugin-dialog';
 import { downloadDir } from '@tauri-apps/api/path';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { useToasts } from '@/composables/useToasts';
 
-// --- ОБЪЯВЛЕНИЯ, КОТОРЫХ НЕ ХВАТАЛО ---
 const store = useMainStore();
-const { showToast } = useToasts(); // <- `showToast` теперь объявлена
+const { showToast } = useToasts();
 
 const reportData = computed(() => {
   const departmentsSummary: Record<string, { patientCount: number; procedureCount: number; unitCount: number }> = {};
   const totals = { patientCount: 0, procedureCount: 0, unitCount: 0 };
   const currentMonthPrefix = new Date().toISOString().slice(0, 7);
 
-  // 1. Сначала собираем статистику по отделениям
   for (const patient of store.patients) {
     if (!patient.assignments || patient.assignments.length === 0 || patient.assignments.includes('Нет')) {
       continue;
@@ -95,25 +92,58 @@ const reportData = computed(() => {
     departmentsSummary[dep].unitCount += totalUnitsPerProcedure * proceduresThisMonth;
   }
 
-  // 2. Теперь, на основе собранных данных, вычисляем итоги
   for (const depData of Object.values(departmentsSummary)) {
     totals.patientCount += depData.patientCount;
     totals.procedureCount += depData.procedureCount;
     totals.unitCount += depData.unitCount;
   }
 
-  // 3. Округляем значения УЕТ
   Object.values(departmentsSummary).forEach(data => {
     data.unitCount = parseFloat(data.unitCount.toFixed(1));
   });
   totals.unitCount = parseFloat(totals.unitCount.toFixed(1));
 
-  // 4. Возвращаем единый объект с двумя наборами данных
   return {
     departments: departmentsSummary,
     totals: totals
   };
 });
+
+
+function applyPrintStyles(element: HTMLElement) {
+  element.setAttribute('data-original-style', element.getAttribute('style') || '');
+  element.style.backgroundColor = '#ffffff';
+  element.style.color = '#000000';
+  element.style.border = '1px solid #dddddd';
+  element.style.boxShadow = 'none';
+
+  const children = element.querySelectorAll('*') as NodeListOf<HTMLElement>;
+  children.forEach(child => {
+    child.setAttribute('data-original-style', child.getAttribute('style') || '');
+    child.style.backgroundColor = 'transparent';
+    child.style.color = '#000000';
+    child.style.borderColor = '#dddddd';
+    child.style.borderBottomColor = '#dddddd';
+  });
+
+  const tableContainer = element.querySelector('.table-container-report') as HTMLElement;
+  if (tableContainer && tableContainer.scrollWidth > tableContainer.clientWidth) {
+    console.log("AEGIS PROTOCOL: Overflow detected. Adjusting render width.");
+    element.style.width = `${tableContainer.scrollWidth}px`;
+    tableContainer.style.overflowX = 'visible';
+  }
+}
+
+function restoreOriginalStyles(element: HTMLElement) {
+  element.setAttribute('style', element.getAttribute('data-original-style') || '');
+  element.removeAttribute('data-original-style');
+
+  const children = element.querySelectorAll('*') as NodeListOf<HTMLElement>;
+  children.forEach(child => {
+    child.setAttribute('style', child.getAttribute('data-original-style') || '');
+    child.removeAttribute('data-original-style');
+  });
+}
 
 async function exportToPDF() {
   const element = document.getElementById('report-content');
@@ -122,37 +152,37 @@ async function exportToPDF() {
     return;
   }
 
-  const opt = {
-    margin: 10,
-    filename: 'report.pdf',
-    image: { type: 'jpeg' as const, quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
-  };
+  applyPrintStyles(element); // перекрашиваем под печать
 
   try {
-    const pdfData = await html2pdf().from(element).set(opt).output('arraybuffer');
+    const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+    const imgData = canvas.toDataURL('image/png');
 
-    // `downloadDir` теперь доступна благодаря импорту
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const imgProps = pdf.getImageProperties(imgData);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+    const pdfArray = pdf.output('arraybuffer');
+
     const defaultPath = await downloadDir();
-
     const filePath = await save({
       title: 'Сохранить отчет',
       defaultPath: `${defaultPath}/report-${new Date().toISOString().slice(0, 10)}.pdf`,
-      filters: [{
-        name: 'PDF Document',
-        extensions: ['pdf']
-      }]
+      filters: [{ name: 'PDF Document', extensions: ['pdf'] }]
     });
 
     if (filePath) {
-      await writeFile(filePath, pdfData);
+      await writeFile(filePath, new Uint8Array(pdfArray));
       showToast("Отчет успешно сохранен в PDF!", "success");
     }
-
-  } catch (error) {
-    console.error("Произошла ошибка при экспорте в PDF:", error);
-    showToast("Ошибка при сохранении PDF.", "error"); // `showToast` теперь тоже доступна
+  } catch (err) {
+    console.error('Ошибка при экспорте PDF:', err);
+    showToast("Ошибка при сохранении PDF.", "error");
+  } finally {
+    restoreOriginalStyles(element);
   }
 }
 </script>
